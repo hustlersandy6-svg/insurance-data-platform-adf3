@@ -1,0 +1,46 @@
+{
+	"name": "DS_AgentMaster_SQL",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_azure_sql_insurance",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"p_SourceObject": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "AgentID",
+				"type": "varchar"
+			},
+			{
+				"name": "AgentName",
+				"type": "varchar"
+			},
+			{
+				"name": "Branch",
+				"type": "varchar"
+			},
+			{
+				"name": "JoinDate",
+				"type": "date"
+			},
+			{
+				"name": "Status",
+				"type": "varchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": {
+				"value": "@dataset().p_SourceObject",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

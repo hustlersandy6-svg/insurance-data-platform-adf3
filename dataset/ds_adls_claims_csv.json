@@ -1,0 +1,76 @@
+{
+	"name": "ds_adls_claims_csv",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_adlsgen2_insurance",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"p_Directory": {
+				"type": "string"
+			},
+			"p_FileName": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@dataset().p_FileName",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@dataset().p_Directory",
+					"type": "Expression"
+				},
+				"fileSystem": "landing-claimsvendor"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": [
+			{
+				"name": "ClaimID",
+				"type": "String"
+			},
+			{
+				"name": "PolicyID",
+				"type": "String"
+			},
+			{
+				"name": "CustomerID",
+				"type": "String"
+			},
+			{
+				"name": "ClaimDate",
+				"type": "String"
+			},
+			{
+				"name": "ClaimType",
+				"type": "String"
+			},
+			{
+				"name": "ClaimAmount",
+				"type": "String"
+			},
+			{
+				"name": "ApprovedAmount",
+				"type": "String"
+			},
+			{
+				"name": "ClaimStatus",
+				"type": "String"
+			},
+			{
+				"name": "AdjusterID",
+				"type": "String"
+			}
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

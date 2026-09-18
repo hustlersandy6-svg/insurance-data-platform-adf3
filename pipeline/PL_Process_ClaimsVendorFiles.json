@@ -1,0 +1,244 @@
+{
+	"name": "PL_Process_ClaimsVendorFiles",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get_Metadata_ClaimsFolder",
+				"type": "GetMetadata",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_ClaimsVendor_LandingFolder",
+						"type": "DatasetReference"
+					},
+					"fieldList": [
+						"childItems"
+					],
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "ForEach_ClaimsFiles",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get_Metadata_ClaimsFolder",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get_Metadata_ClaimsFolder').output.childItems",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 4,
+					"activities": [
+						{
+							"name": "Copy_ClaimsVendor_To_Bronze",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"mappings": [
+										{
+											"source": {
+												"name": "ClaimID",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "ClaimID",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "PolicyID",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "PolicyID",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "CustomerID",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "CustomerID",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "ClaimDate",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "ClaimDate",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "ClaimType",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "ClaimType",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "ClaimAmount",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "ClaimAmount",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "ApprovedAmount",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "ApprovedAmount",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "ClaimStatus",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "ClaimStatus",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										},
+										{
+											"source": {
+												"name": "AdjusterID",
+												"type": "String",
+												"physicalType": "String"
+											},
+											"sink": {
+												"name": "AdjusterID",
+												"type": "String",
+												"physicalType": "UTF8"
+											}
+										}
+									],
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "DS_ClaimsVendor_CSV",
+									"type": "DatasetReference",
+									"parameters": {
+										"p_FileName": "@item().name"
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "DS_Bronze_Generic_Parquet",
+									"type": "DatasetReference",
+									"parameters": {
+										"p_TargetPath": "@pipeline().parameters.p_TargetPath",
+										"p_IngestionDate": "@formatDateTime(utcnow(),'yyyy-MM-dd')"
+									}
+								}
+							]
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"p_FileNamePattern": {
+				"type": "string"
+			},
+			"p_TargetPath": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-08-26T14:28:45Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

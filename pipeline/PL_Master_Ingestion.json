@@ -1,0 +1,415 @@
+{
+	"name": "PL_Master_Ingestion",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Active_Sources",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SourceControlConfig",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_ActiveSources",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Active_Sources",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup_Active_Sources').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 4,
+					"activities": [
+						{
+							"name": "If_SQL_Incremental",
+							"type": "IfCondition",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@and(\n    equals(item().SourceType,'SQL'),\n    not(equals(item().WatermarkColumn,null))\n)",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "Execute_PL_Ingest_Incremental",
+										"type": "ExecutePipeline",
+										"dependsOn": [],
+										"policy": {
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"pipeline": {
+												"referenceName": "PL_Ingest_PolicyAdminDB",
+												"type": "PipelineReference"
+											},
+											"waitOnCompletion": true,
+											"parameters": {
+												"p_SourceObject": {
+													"value": "@item().SourceObject",
+													"type": "Expression"
+												},
+												"p_Targetpath": {
+													"value": "@item().TargetPath",
+													"type": "Expression"
+												},
+												"p_WatermarkColumn": {
+													"value": "@item().WatermarkColumn",
+													"type": "Expression"
+												}
+											}
+										}
+									},
+									{
+										"name": "Log_Audit_Policy",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "Execute_PL_Ingest_Incremental",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_LogAudit]",
+											"storedProcedureParameters": {
+												"Message": {
+													"value": {
+														"value": "@if(equals(activity('Execute_PL_Ingest_Incremental').Status,'Succeeded'),'Policy ingestion completed successfully','Policy ingestion failed')",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"PipelineName": {
+													"value": "PL_Ingest_PolicyAdminDB",
+													"type": "String"
+												},
+												"rowsCopied": {
+													"value": null,
+													"type": "Int64"
+												},
+												"Status": {
+													"value": {
+														"value": "@if(equals(activity('Execute_PL_Ingest_Incremental').Status,'Succeeded'),'SUCCESS','FAILED')",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "LS_ControlDB_SQL",
+											"type": "LinkedServiceReference"
+										}
+									},
+									{
+										"name": "Web2",
+										"type": "WebActivity",
+										"dependsOn": [
+											{
+												"activity": "Log_Audit_Policy",
+												"dependencyConditions": [
+													"Failed"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"method": "POST",
+											"url": "https://prod-22.northcentralus.logic.azure.com:443/workflows/bb366f474bcf47e9aa82474f98cc2bd6/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=YDetQ5VabsPDM60W6ZndK_Qmmwt5MNsL2sbnkTlHadw",
+											"body": {
+												"pipelineName": "@{pipeline().Pipeline}",
+												"runId": "@{pipeline().RunId}",
+												"runUrl": "@{concat('https://adf.azure.com/en/monitoring/pipelineruns/', pipeline().RunId)}"
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"name": "If_SQL_Full",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "If_SQL_Incremental",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@and(\n    equals(item().SourceType,'SQL'),\n    empty(item().WatermarkColumn)\n)",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "Execute_PL_Ingest_AgentMasterDB",
+										"type": "ExecutePipeline",
+										"dependsOn": [],
+										"policy": {
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"pipeline": {
+												"referenceName": "PL_Ingest_AgentMasterDB",
+												"type": "PipelineReference"
+											},
+											"waitOnCompletion": true,
+											"parameters": {
+												"p_SourceObject": {
+													"value": "@item().SourceObject",
+													"type": "Expression"
+												},
+												"p_TargetPath": {
+													"value": "@item().TargetPath",
+													"type": "Expression"
+												},
+												"p_WatermarkColumn": {
+													"value": "@item().WatermarkColumn",
+													"type": "Expression"
+												}
+											}
+										}
+									},
+									{
+										"name": "Log_Audit_Agent",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "Execute_PL_Ingest_AgentMasterDB",
+												"dependencyConditions": [
+													"Succeeded",
+													"Failed"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_LogAudit]",
+											"storedProcedureParameters": {
+												"Message": {
+													"value": {
+														"value": "@if(equals(activity('Execute_PL_Ingest_AgentMasterDB').Status,'Succeeded'),'Agent ingestion completed successfully','Agent ingestion failed')",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"PipelineName": {
+													"value": "PL_Ingest_AgentMasterDB",
+													"type": "String"
+												},
+												"rowsCopied": {
+													"value": null,
+													"type": "Int64"
+												},
+												"Status": {
+													"value": {
+														"value": "@if(equals(activity('Execute_PL_Ingest_AgentMasterDB').Status,'Succeeded'),'SUCCESS','FAILED')",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "LS_ControlDB_SQL",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						},
+						{
+							"name": "If_FILE",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "If_SQL_Full",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(item().SourceType,'FILE')",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "Execute_PL_Ingest_ClaimsVendor",
+										"type": "ExecutePipeline",
+										"dependsOn": [],
+										"policy": {
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"pipeline": {
+												"referenceName": "PL_Ingest_ClaimsVendor",
+												"type": "PipelineReference"
+											},
+											"waitOnCompletion": true,
+											"parameters": {
+												"p_FileNamePattern": {
+													"value": "@item().FileNamePattern",
+													"type": "Expression"
+												},
+												"p_TargetPath": {
+													"value": "@item().TargetPath",
+													"type": "Expression"
+												}
+											}
+										}
+									},
+									{
+										"name": "Log_Audit",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "Execute_PL_Ingest_ClaimsVendor",
+												"dependencyConditions": [
+													"Succeeded",
+													"Failed"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_LogAudit]",
+											"storedProcedureParameters": {
+												"Message": {
+													"value": {
+														"value": "@if(equals(activity('Execute_PL_Ingest_ClaimsVendor').Status,'Succeeded'),'Claims ingestion completed successfully','Claims ingestion failed')",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"PipelineName": {
+													"value": "PL_Ingest_ClaimsVendor",
+													"type": "String"
+												},
+												"rowsCopied": {
+													"value": null,
+													"type": "Int64"
+												},
+												"Status": {
+													"value": {
+														"value": "@if(equals(activity('Execute_PL_Ingest_ClaimsVendor').Status,'Succeeded'),'SUCCESS','FAILED')",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "LS_ControlDB_SQL",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Web1",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "ForEach_ActiveSources",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "POST",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"url": "https://prod-22.northcentralus.logic.azure.com:443/workflows/bb366f474bcf47e9aa82474f98cc2bd6/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=YDetQ5VabsPDM60W6ZndK_Qmmwt5MNsL2sbnkTlHadw",
+					"body": {
+						"pipelineName": "@{pipeline().Pipeline}",
+						"runId": "@{pipeline().RunId}",
+						"runUrl": "@{concat('https://adf.azure.com/en/monitoring/pipelineruns/', pipeline().RunId)}"
+					}
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-09-16T06:37:46Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

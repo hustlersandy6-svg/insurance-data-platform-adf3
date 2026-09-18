@@ -1,0 +1,79 @@
+{
+	"name": "PL_Ingest_AgentMasterDB",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy_AgentMaster_Full",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "ParquetSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings",
+							"copyBehavior": "FlattenHierarchy"
+						},
+						"formatSettings": {
+							"type": "ParquetWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_AgentMaster_SQL",
+						"type": "DatasetReference",
+						"parameters": {
+							"p_SourceObject": "@pipeline().parameters.p_SourceObject"
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_Bronze_Generic_Parquet",
+						"type": "DatasetReference",
+						"parameters": {
+							"p_TargetPath": "@pipeline().parameters.p_TargetPath",
+							"p_IngestionDate": "@formatDateTime(utcnow(),'yyyy-MM-dd')"
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"p_SourceObject": {
+				"type": "string"
+			},
+			"p_TargetPath": {
+				"type": "string"
+			},
+			"p_WatermarkColumn": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-09-02T16:04:55Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

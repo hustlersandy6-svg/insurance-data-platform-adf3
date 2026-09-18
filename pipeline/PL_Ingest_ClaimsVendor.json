@@ -1,0 +1,118 @@
+{
+	"name": "PL_Ingest_ClaimsVendor",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get_Metadata_ClaimsFolder",
+				"type": "GetMetadata",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "DS_ClaimsVendor_LandingFolder",
+						"type": "DatasetReference"
+					},
+					"fieldList": [
+						"childItems"
+					],
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "If_FilesExist",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Filter_ClaimsFiles",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(length(activity('Filter_ClaimsFiles').output.value),0)",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Execute_PL_Process_ClaimsVendorFiles",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_Process_ClaimsVendorFiles",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"p_FileNamePattern": {
+										"value": "@pipeline().parameters.p_FileNamePattern",
+										"type": "Expression"
+									},
+									"p_TargetPath": {
+										"value": "@pipeline().parameters.p_TargetPath",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Filter_ClaimsFiles",
+				"type": "Filter",
+				"dependsOn": [
+					{
+						"activity": "Get_Metadata_ClaimsFolder",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get_Metadata_ClaimsFolder').output.childItems",
+						"type": "Expression"
+					},
+					"condition": {
+						"value": "@and(     startsWith(item().name,'Claims_'),     endsWith(item().name,'.csv') )",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"p_FileNamePattern": {
+				"type": "string"
+			},
+			"p_TargetPath": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-08-26T14:28:45Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

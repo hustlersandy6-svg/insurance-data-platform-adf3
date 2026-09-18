@@ -1,0 +1,17 @@
+{
+	"name": "DS_ControlDB_SQL",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ControlDB_SQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "WatermarkTable"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

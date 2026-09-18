@@ -1,0 +1,336 @@
+{
+	"name": "PL_Ingest_PolicyAdminDB",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_SourceControl",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT\n    SourceName,\n    SourceType,\n    SourceObject,\n    TargetPath,\n    WatermarkColumn,\n    FileNamePattern,\n    Status\nFROM dbo.SourceControlConfig\nWHERE Status = 'ACTIVE';",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SourceControlConfig",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_Source",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup_SourceControl",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup_SourceControl').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "If Condition1",
+							"type": "IfCondition",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@and(\n    equals(item().SourceType, 'SQL'),\n    not(equals(item().WatermarkColumn, null))\n)",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "Copy_File_Source_To_Bronze",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "DelimitedTextSource",
+												"storeSettings": {
+													"type": "AzureBlobFSReadSettings",
+													"recursive": true,
+													"enablePartitionDiscovery": false
+												},
+												"formatSettings": {
+													"type": "DelimitedTextReadSettings"
+												}
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings",
+													"copyBehavior": "PreserveHierarchy"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "DS_ClaimsVendor_CSV",
+												"type": "DatasetReference",
+												"parameters": {
+													"p_FileName": "@item().FileNamePattern"
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "DS_Bronze_Generic_Parquet",
+												"type": "DatasetReference",
+												"parameters": {
+													"p_TargetPath": {
+														"value": "@item().TargetPath",
+														"type": "Expression"
+													},
+													"p_IngestionDate": {
+														"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "Copy_SQL_Source_To_Bronze",
+										"type": "Copy",
+										"dependsOn": [
+											{
+												"activity": "Lookup_Watermark",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "@concat(\n'SELECT * FROM ',\nitem().SourceObject,\n' WHERE ',\nitem().WatermarkColumn,\n' > ''',\nactivity('Lookup_Watermark').output.firstRow.LastWatermarkValue,\n''''\n)",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings",
+													"copyBehavior": "PreserveHierarchy"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "DS_SQL_Source_Generic",
+												"type": "DatasetReference",
+												"parameters": {
+													"p_SourceObject": "@item().SourceObject"
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "DS_Bronze_Generic_Parquet",
+												"type": "DatasetReference",
+												"parameters": {
+													"p_TargetPath": "@item().TargetPath",
+													"p_IngestionDate": "@formatDateTime(utcnow(),'yyyy-MM-dd')"
+												}
+											}
+										]
+									},
+									{
+										"name": "Lookup_Watermark",
+										"type": "Lookup",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "@concat(\n'SELECT ISNULL(MAX(LastWatermarkValue), ''1900-01-01'') AS LastWatermarkValue\nFROM dbo.WatermarkTable\nWHERE SourceName = ''',\nitem().SourceName,\n''''\n)",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"dataset": {
+												"referenceName": "DS_ControlDB_SQL",
+												"type": "DatasetReference"
+											}
+										}
+									},
+									{
+										"name": "Lookup_NewWatermark",
+										"type": "Lookup",
+										"dependsOn": [
+											{
+												"activity": "Copy_SQL_Source_To_Bronze",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "@concat(\n    'SELECT MAX(',\n    item().WatermarkColumn,\n    ') AS NewWatermark',\n    ' FROM ',\n    item().SourceObject,\n    ' WHERE ',\n    item().WatermarkColumn,\n    ' > ''',\n    activity('Lookup_Watermark').output.firstRow.LastWatermarkValue,\n    ''''\n)",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"dataset": {
+												"referenceName": "DS_SQL_Source_Generic",
+												"type": "DatasetReference",
+												"parameters": {
+													"p_SourceObject": "@item().SourceObject"
+												}
+											}
+										}
+									},
+									{
+										"name": "Update_Watermark",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "Lookup_NewWatermark",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "dbo.usp_UpdateWatermark",
+											"storedProcedureParameters": {
+												"SourceName": {
+													"value": {
+														"value": "@{item().SourceObject}",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"NewWatermark": {
+													"value": {
+														"value": "@{activity('Lookup_NewWatermark').output.firstRow.NewWatermark}",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"RunStatus": {
+													"value": "SUCCESS",
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "LS_ControlDB_SQL",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"p_SourceObject": {
+				"type": "string"
+			},
+			"p_Targetpath": {
+				"type": "string"
+			},
+			"p_WatermarkColumn": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-09-02T16:04:55Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

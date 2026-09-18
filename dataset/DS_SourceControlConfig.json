@@ -1,0 +1,46 @@
+{
+	"name": "DS_SourceControlConfig",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_ControlDB_SQL",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "SourceName",
+				"type": "varchar"
+			},
+			{
+				"name": "SourceType",
+				"type": "varchar"
+			},
+			{
+				"name": "SourceObject",
+				"type": "varchar"
+			},
+			{
+				"name": "TargetPath",
+				"type": "varchar"
+			},
+			{
+				"name": "WatermarkColumn",
+				"type": "varchar"
+			},
+			{
+				"name": "FileNamePattern",
+				"type": "varchar"
+			},
+			{
+				"name": "Status",
+				"type": "varchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "SourceControlConfig"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

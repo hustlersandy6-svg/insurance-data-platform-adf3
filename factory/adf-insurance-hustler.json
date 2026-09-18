@@ -1,0 +1,15 @@
+{
+	"name": "adf-insurance-hustler",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "centralindia",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "1cedcf28-100f-4e6d-a3cc-fe4438384cc7",
+		"tenantId": "27b58507-ee10-42b7-8e20-07ddf8f77a74"
+	}
+}

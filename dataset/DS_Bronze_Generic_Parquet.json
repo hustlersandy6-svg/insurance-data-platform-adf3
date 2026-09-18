@@ -1,0 +1,34 @@
+{
+	"name": "DS_Bronze_Generic_Parquet",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_adlsgen2_insurance",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"p_TargetPath": {
+				"type": "string",
+				"defaultValue": "insurance/customer"
+			},
+			"p_IngestionDate": {
+				"type": "string",
+				"defaultValue": "2026-08-25"
+			}
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "@concat(dataset().p_TargetPath, '/ingestion_date=', dataset().p_IngestionDate)",
+					"type": "Expression"
+				},
+				"fileSystem": "bronze"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
